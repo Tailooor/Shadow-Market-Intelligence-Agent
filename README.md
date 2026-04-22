@@ -1,6 +1,6 @@
 # Shadow-Market Intelligence Agent
 
-Shadow-Market Intelligence Agent is a multi-agent competitor research app built with Pydantic AI, OpenRouter, and Gradio.
+Shadow-Market Intelligence Agent is a multi-agent competitor research app built with Pydantic AI and Gradio. It helps you investigate a target company, collect public signals, and turn them into a structured competitor report for sales, strategy, or freelance consulting work.
 
 It creates a structured competitor report with:
 
@@ -15,13 +15,28 @@ It creates a structured competitor report with:
 ## Stack
 
 - `Pydantic AI` for typed agent orchestration and strict output schemas
-- `OpenRouter` with `openrouter/free`
-- provider switching for `OpenRouter`, `Gemini`, `OpenAI`, `Claude`, and `Ollama`
+- runtime provider switching for `OpenRouter`, `Gemini`, `OpenAI`, `Claude`, and `Ollama`
 - `Gradio` for the frontend
 - `DuckDuckGo Search` for URL discovery
 - `Trafilatura` + `BeautifulSoup` for page text extraction
 
-## Why `openrouter/free`
+## Supported Providers
+
+The UI lets you choose the provider and model at runtime.
+
+- `OpenRouter`
+- `Gemini`
+- `OpenAI`
+- `Claude`
+- `Ollama`
+
+Each provider has:
+
+- its own API key or base URL in `.env`
+- suggested model choices in the UI
+- pre-run validation so missing keys are shown before the workflow starts
+
+## Why `openrouter/free` As The Default
 
 OpenRouter documents `openrouter/free` as a router that automatically selects from currently available free models and filters for needed features like structured outputs and tool calling.
 
@@ -79,15 +94,12 @@ MAX_SOURCES_TO_ANALYZE=6
 MAX_SOURCE_TEXT_CHARS=6000
 ```
 
-Then paste your real OpenRouter API key into:
+Then paste the real keys for the providers you want to use.
+
+Example:
 
 ```env
 OPENROUTER_API_KEY=your_real_openrouter_key
-```
-
-For the other providers, add keys only if you want to use them:
-
-```env
 GOOGLE_API_KEY=your_google_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
@@ -98,6 +110,8 @@ For Ollama, the important setting is usually:
 ```env
 OLLAMA_BASE_URL=http://localhost:11434/v1
 ```
+
+If you do not add a provider key, that is fine. The app will simply show a warning in the GUI when that provider is selected.
 
 You can keep the rest of the values as-is unless you want to tune the app.
 
@@ -122,6 +136,36 @@ uv run python -m compileall app main.py
 ```
 
 If you pulled a newer version of the repo with additional providers, run `uv sync` again so the Gemini and Claude SDK dependencies are installed locally.
+
+## Using The UI
+
+### 1. Pick a provider and model
+
+Use the `LLM Provider` dropdown to choose `OpenRouter`, `Gemini`, `OpenAI`, `Claude`, or `Ollama`.
+
+Then choose a model from the `Model` dropdown, or type your own model ID.
+
+### 2. Check provider status
+
+The app shows a provider status panel in the GUI.
+
+- If the required API key exists, it will say the provider is ready.
+- If the key is missing, it will tell you exactly which `.env` variable is missing.
+- For Ollama, it checks `OLLAMA_BASE_URL`.
+
+### 3. Run an intelligence sweep
+
+Enter a target company, optionally toggle Reddit, LinkedIn, and reviews analysis, then run the workflow.
+
+### 4. Review the output
+
+The app renders:
+
+- a streamed thought trace
+- the full structured JSON report
+- a `Pricing + SWOT Snapshot` table
+- a markdown market report
+- downloadable JSON and PDF exports
 
 ## How It Works
 
@@ -171,6 +215,7 @@ The final agent turns those structured findings into a formal competitor report 
 - streamed activity trace in the Gradio app
 - provider selector with model dropdown
 - provider status area that warns when a required API key is missing from `.env`
+- dedicated `Pricing + SWOT Snapshot` table rendered with Gradio
 - tool toggles for Reddit, LinkedIn, and reviews analysis
 - JSON download
 - PDF download
@@ -181,6 +226,9 @@ The final agent turns those structured findings into a formal competitor report 
 - Some websites block scraping or render content heavily with JavaScript, so source coverage may vary.
 - `openrouter/free` is great for demos, prototyping, and lightweight client work, but reliability can vary since the router selects among currently available free models.
 - Review and community analysis works best when Reddit or review pages are publicly accessible.
+- Gemini, Claude, and OpenAI require their own provider keys in `.env`.
+- Ollama requires a reachable `OLLAMA_BASE_URL`, usually `http://localhost:11434/v1`.
+- If you change dependencies or pull a newer version, run `uv sync` again.
 
 ## Project Structure
 
