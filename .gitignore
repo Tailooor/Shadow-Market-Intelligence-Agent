@@ -5,3 +5,4 @@ __pycache__/
 exports/
 .gradio/
 .env
+*.egg-info/

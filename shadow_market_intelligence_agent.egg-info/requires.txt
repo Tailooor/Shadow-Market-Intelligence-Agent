@@ -7,4 +7,5 @@ pydantic-ai-slim[anthropic,google,openai,openrouter]>=1.85.1
 pydantic-settings>=2.8.1
 python-dotenv>=1.1.0
 reportlab>=4.4.0
+tenacity>=9.0
 trafilatura>=2.0.0

@@ -1,11 +1,40 @@
+import argparse
+import logging
+import sys
+
+import gradio as gr
+
 from app.ui import build_ui
 
 
-if __name__ == "__main__":
-    import gradio as gr
+def setup_logging(level: str = "INFO") -> None:
+    logging.basicConfig(
+        level=getattr(logging, level.upper(), logging.INFO),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler("shadow_market.log", encoding="utf-8"),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Shadow-Market Intelligence Agent")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind the Gradio server")
+    parser.add_argument("--port", type=int, default=7860, help="Port to bind the Gradio server")
+    parser.add_argument("--share", action="store_true", help="Create a public Gradio share link")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    args = parser.parse_args()
+
+    setup_logging(args.log_level)
+    logger = logging.getLogger(__name__)
+    logger.info("Starting Shadow-Market Intelligence Agent on %s:%d", args.host, args.port)
 
     demo = build_ui()
     demo.queue().launch(
+        server_name=args.host,
+        server_port=args.port,
+        share=args.share,
         theme=gr.themes.Soft(
             primary_hue="slate",
             secondary_hue="blue",
@@ -34,3 +63,7 @@ if __name__ == "__main__":
         }
         """,
     )
+
+
+if __name__ == "__main__":
+    main()

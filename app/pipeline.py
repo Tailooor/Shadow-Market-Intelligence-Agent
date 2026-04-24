@@ -1,3 +1,5 @@
+import asyncio
+import json
 from collections import OrderedDict
 from typing import Callable
 
@@ -5,11 +7,11 @@ import httpx
 import trafilatura
 from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.agents import RuntimeLLMConfig, build_analyst, build_lead_researcher, build_synthesis_agent
 from app.config import get_settings
 from app.schemas import CompetitorReport, ResearchPlan, SearchResult, SearchTask, SourceAnalysis, ToolToggles
-
 
 TraceFn = Callable[[str], None]
 
@@ -21,7 +23,7 @@ class MarketIntelligenceService:
         self.lead_researcher = build_lead_researcher(runtime_config)
         self.analyst = build_analyst(runtime_config)
         self.synthesis_agent = build_synthesis_agent(runtime_config)
-        self.http = httpx.Client(
+        self.http = httpx.AsyncClient(
             timeout=self.settings.http_timeout_seconds,
             follow_redirects=True,
             headers={
@@ -31,11 +33,24 @@ class MarketIntelligenceService:
                 )
             },
         )
+        self._semaphore = asyncio.Semaphore(5)
 
-    def close(self) -> None:
-        self.http.close()
+    async def close(self) -> None:
+        await self.http.aclose()
 
-    def plan_research(self, company_name: str, toggles: ToolToggles) -> ResearchPlan:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((Exception,)),
+        reraise=True,
+    )
+    async def plan_research(self, company_name: str, toggles: ToolToggles) -> ResearchPlan:
         prompt = f"""
 Target company: {company_name}
 
@@ -46,10 +61,10 @@ Tool toggles:
 
 Create a high-value research plan for a competitor intelligence workflow.
 """.strip()
-        result = self.lead_researcher.run_sync(prompt)
+        result = await self.lead_researcher.run(prompt)
         return result.output
 
-    def execute_searches(self, plan: ResearchPlan, toggles: ToolToggles, trace: TraceFn) -> list[SearchResult]:
+    async def execute_searches(self, plan: ResearchPlan, toggles: ToolToggles, trace: TraceFn) -> list[SearchResult]:
         filtered_tasks = []
         for task in plan.search_tasks:
             if task.category == "reddit" and not toggles.enable_reddit_search:
@@ -66,34 +81,39 @@ Create a high-value research plan for a competitor intelligence workflow.
         trace(f"Search specialist queued {len(filtered_tasks)} targeted searches.")
         deduped: OrderedDict[str, SearchResult] = OrderedDict()
 
-        for task in filtered_tasks:
+        async def _search_one(task: SearchTask) -> None:
             trace(f"Searching for {task.category} evidence: {task.query}")
             try:
-                with DDGS() as ddgs:
-                    results = ddgs.text(task.query, max_results=self.settings.max_search_results_per_task)
-                    for item in results:
-                        url = item.get("href") or item.get("url")
-                        title = item.get("title") or url or "Untitled result"
-                        if not url or url in deduped:
-                            continue
-                        deduped[url] = SearchResult(
-                            title=title,
-                            url=url,
-                            snippet=item.get("body", ""),
-                            query=task.query,
-                            category=task.category,
-                        )
+                loop = asyncio.get_running_loop()
+                results = await loop.run_in_executor(
+                    None,
+                    lambda: _ddgs_text(task.query, self.settings.max_search_results_per_task),
+                )
+                for item in results:
+                    url = item.get("href") or item.get("url")
+                    title = item.get("title") or url or "Untitled result"
+                    if not url or url in deduped:
+                        continue
+                    deduped[url] = SearchResult(
+                        title=title,
+                        url=url,
+                        snippet=item.get("body", ""),
+                        query=task.query,
+                        category=task.category,
+                    )
             except Exception as exc:
                 trace(f"Search failed for query '{task.query}': {exc}")
+
+        await asyncio.gather(*[_search_one(task) for task in filtered_tasks])
 
         ranked = list(deduped.values())[: self.settings.max_sources_to_analyze]
         trace(f"Collected {len(ranked)} unique URLs for source analysis.")
         return ranked
 
-    def fetch_source_text(self, source: SearchResult, trace: TraceFn) -> str:
+    async def fetch_source_text(self, source: SearchResult, trace: TraceFn) -> str:
         trace(f"Fetching source: {source.url}")
         try:
-            response = self.http.get(source.url)
+            response = await self.http.get(source.url)
             response.raise_for_status()
             html = response.text
         except Exception as exc:
@@ -110,7 +130,13 @@ Create a high-value research plan for a competitor intelligence workflow.
         text = extracted or BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
         return text[: self.settings.max_source_text_chars]
 
-    def analyze_source(self, company_name: str, plan: ResearchPlan, source: SearchResult, source_text: str) -> SourceAnalysis | None:
+    @retry(
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=1, max=5),
+        retry=retry_if_exception_type((Exception,)),
+        reraise=True,
+    )
+    async def analyze_source(self, company_name: str, plan: ResearchPlan, source: SearchResult, source_text: str) -> SourceAnalysis | None:
         if not source_text.strip():
             return None
 
@@ -122,14 +148,14 @@ Source URL: {source.url}
 Search query that found it: {source.query}
 Snippet: {source.snippet}
 
-Research plan context:
-{plan.model_dump_json(indent=2)}
+Research plan context (intel gaps and working hypotheses):
+{json.dumps([gap.model_dump() for gap in plan.intel_gaps], indent=2)}
 
 Source text:
 {source_text}
 """.strip()
 
-        result = self.analyst.run_sync(prompt)
+        result = await self.analyst.run(prompt)
         analysis = result.output
         return analysis.model_copy(
             update={
@@ -139,7 +165,13 @@ Source text:
             }
         )
 
-    def synthesize_report(
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((Exception,)),
+        reraise=True,
+    )
+    async def synthesize_report(
         self,
         company_name: str,
         plan: ResearchPlan,
@@ -153,15 +185,43 @@ Research plan:
 {plan.model_dump_json(indent=2)}
 
 Structured source analyses:
-{[analysis.model_dump() for analysis in analyses]}
+{json.dumps([analysis.model_dump() for analysis in analyses], indent=2)}
 """.strip()
-        result = self.synthesis_agent.run_sync(prompt)
+        result = await self.synthesis_agent.run(prompt)
         draft = result.output
         return CompetitorReport(
             **draft.model_dump(),
             source_evidence=analyses,
             trace=trace_log,
         )
+
+    async def analyze_sources_parallel(
+        self,
+        company_name: str,
+        plan: ResearchPlan,
+        search_results: list[SearchResult],
+        trace: TraceFn,
+    ) -> list[SourceAnalysis]:
+        async def _analyze_one(source: SearchResult) -> SourceAnalysis | None:
+            async with self._semaphore:
+                source_text = await self.fetch_source_text(source, trace)
+                if not source_text.strip():
+                    trace(f"Skipped source with no usable text: {source.url}")
+                    return None
+                trace(f"Analyst agent is extracting signals from {source.title}.")
+                try:
+                    analysis = await self.analyze_source(company_name, plan, source, source_text)
+                    if analysis is not None:
+                        trace(f"Captured structured findings from {analysis.source_title} with {analysis.confidence} confidence.")
+                    else:
+                        trace(f"Analyst skipped {source.title} because the page content was empty.")
+                    return analysis
+                except Exception as exc:
+                    trace(f"Analysis failed for {source.title}: {exc}")
+                    return None
+
+        results = await asyncio.gather(*[_analyze_one(source) for source in search_results])
+        return [r for r in results if r is not None]
 
     def _fallback_tasks(self, company_name: str, toggles: ToolToggles) -> list[SearchTask]:
         tasks = [
@@ -188,3 +248,8 @@ Structured source analyses:
                 category="linkedin",
             ))
         return tasks
+
+
+def _ddgs_text(query: str, max_results: int):
+    with DDGS() as ddgs:
+        return ddgs.text(query, max_results=max_results)

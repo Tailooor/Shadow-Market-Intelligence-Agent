@@ -29,9 +29,9 @@ class SearchTask(BaseModel):
 
 class ResearchPlan(BaseModel):
     company_name: str
-    intel_gaps: list[IntelGap]
-    search_tasks: list[SearchTask]
-    working_hypotheses: list[str]
+    intel_gaps: list[IntelGap] = Field(min_length=1)
+    search_tasks: list[SearchTask] = Field(min_length=1)
+    working_hypotheses: list[str] = Field(min_length=1)
 
 
 class SearchResult(BaseModel):

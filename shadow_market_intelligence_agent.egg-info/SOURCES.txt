@@ -12,3 +12,7 @@ shadow_market_intelligence_agent.egg-info/SOURCES.txt
 shadow_market_intelligence_agent.egg-info/dependency_links.txt
 shadow_market_intelligence_agent.egg-info/requires.txt
 shadow_market_intelligence_agent.egg-info/top_level.txt
+tests/test_config.py
+tests/test_exporters.py
+tests/test_pipeline.py
+tests/test_schemas.py

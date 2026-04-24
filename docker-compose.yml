@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "7860:7860"
+    env_file:
+      - .env
+    volumes:
+      - ./exports:/app/exports
+      - ./shadow_market.log:/app/shadow_market.log
+    restart: unless-stopped

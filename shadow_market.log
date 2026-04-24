@@ -1,0 +1,26 @@
+2026-04-24 23:46:07,747 [INFO] __main__: Starting Shadow-Market Intelligence Agent on 127.0.0.1:7860
+2026-04-24 23:46:09,527 [INFO] httpx: HTTP Request: HEAD https://huggingface.co/api/telemetry/https%3A/api.gradio.app/gradio-initiated-analytics "HTTP/1.1 200 OK"
+2026-04-24 23:46:09,986 [INFO] httpx: HTTP Request: GET https://api.gradio.app/pkg-version "HTTP/1.1 200 OK"
+2026-04-24 23:46:10,389 [INFO] httpx: HTTP Request: GET http://127.0.0.1:7860/gradio_api/startup-events "HTTP/1.1 200 OK"
+2026-04-24 23:46:10,451 [INFO] httpx: HTTP Request: HEAD http://127.0.0.1:7860/ "HTTP/1.1 200 OK"
+2026-04-24 23:46:10,610 [INFO] httpx: HTTP Request: HEAD https://huggingface.co/api/telemetry/https%3A/api.gradio.app/gradio-launched-telemetry "HTTP/1.1 200 OK"
+2026-04-24 23:47:40,350 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-24 23:47:45,326 [INFO] primp: response: https://www.bing.com/search?q=methodfi+careers+software+engineer+hiring+stack+%22Python%22+%22SQL%22+%22AWS%22+%22machine+learning%22+LinkedIn 200
+2026-04-24 23:47:45,330 [INFO] primp: response: https://www.bing.com/search?q=%22methodfi%22+Reddit+%22methodfi.com%22+OR+%22methodfi%22+community+complaints 200
+2026-04-24 23:47:45,336 [INFO] primp: response: https://www.bing.com/search?q=methodfi+reviews+site%3Atrustpilot.com+site%3Agoogle.com+%22methodfi%22+review 200
+2026-04-24 23:47:45,378 [INFO] primp: response: https://www.bing.com/search?q=%22methodfi%22+%22API%22+%22integration%22+%22developer%22+site%3Amethodfi.com+docs 200
+2026-04-24 23:47:45,388 [INFO] primp: response: https://www.bing.com/search?q=methodfi+pricing+subscription+tiers+fees+API+costs+site%3Amethodfi.com+pricing 200
+2026-04-24 23:47:46,275 [INFO] primp: response: https://www.bing.com/search?q=methodfi+reviews+site%3Atrustpilot.com+site%3Agoogle.com+%22methodfi%22+review&first=11&FORM=PERE 200
+2026-04-24 23:47:46,292 [INFO] primp: response: https://www.bing.com/search?q=%22methodfi%22+%22API%22+%22integration%22+%22developer%22+site%3Amethodfi.com+docs&first=11&FORM=PERE 200
+2026-04-24 23:47:46,301 [INFO] primp: response: https://www.bing.com/search?q=methodfi+pricing+subscription+tiers+fees+API+costs+site%3Amethodfi.com+pricing&first=11&FORM=PERE 200
+2026-04-24 23:47:47,198 [INFO] primp: response: https://www.bing.com/search?q=methodfi+reviews+site%3Atrustpilot.com+site%3Agoogle.com+%22methodfi%22+review&first=21&FORM=PERE1 200
+2026-04-24 23:47:47,209 [INFO] primp: response: https://www.bing.com/search?q=%22methodfi%22+%22API%22+%22integration%22+%22developer%22+site%3Amethodfi.com+docs&first=21&FORM=PERE1 200
+2026-04-24 23:47:47,218 [INFO] primp: response: https://www.bing.com/search?q=methodfi+pricing+subscription+tiers+fees+API+costs+site%3Amethodfi.com+pricing&first=21&FORM=PERE1 200
+2026-04-24 23:47:48,128 [INFO] primp: response: https://www.bing.com/search?q=%22methodfi%22+%22API%22+%22integration%22+%22developer%22+site%3Amethodfi.com+docs&first=31&FORM=PERE2 200
+2026-04-24 23:47:48,137 [INFO] primp: response: https://www.bing.com/search?q=methodfi+reviews+site%3Atrustpilot.com+site%3Agoogle.com+%22methodfi%22+review&first=31&FORM=PERE2 200
+2026-04-24 23:47:48,151 [INFO] primp: response: https://www.bing.com/search?q=methodfi+pricing+subscription+tiers+fees+API+costs+site%3Amethodfi.com+pricing&first=31&FORM=PERE2 200
+2026-04-24 23:47:49,052 [INFO] primp: response: https://www.bing.com/search?q=methodfi+pricing+subscription+tiers+fees+API+costs+site%3Amethodfi.com+pricing&first=41&FORM=PERE3 200
+2026-04-24 23:47:49,114 [INFO] primp: response: https://www.bing.com/search?q=%22methodfi%22+%22API%22+%22integration%22+%22developer%22+site%3Amethodfi.com+docs&first=41&FORM=PERE3 200
+2026-04-24 23:47:49,244 [INFO] primp: response: https://www.bing.com/search?q=methodfi+reviews+site%3Atrustpilot.com+site%3Agoogle.com+%22methodfi%22+review&first=41&FORM=PERE3 200
+2026-04-24 23:48:00,227 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-24 23:48:07,060 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"

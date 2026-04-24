@@ -1,4 +1,5 @@
-from typing import Generator
+import asyncio
+from typing import AsyncGenerator
 
 import gradio as gr
 
@@ -104,14 +105,14 @@ def on_provider_change(provider: ProviderId) -> tuple[gr.Dropdown, str]:
     )
 
 
-def run_workflow(
+async def run_workflow(
     company_name: str,
     provider_name: ProviderId,
     model_name: str,
     enable_reddit_search: bool,
     enable_linkedin_analysis: bool,
     enable_reviews_analysis: bool,
-) -> Generator[tuple[str, str, dict | None, list[list[str]] | None, str, str | None, str | None], None, None]:
+) -> AsyncGenerator[tuple[str, str, dict | None, list[list[str]] | None, str, str | None, str | None], None]:
     company_name = company_name.strip()
     model_name = model_name.strip()
 
@@ -143,60 +144,43 @@ def run_workflow(
     )
 
     runtime_config = RuntimeLLMConfig(provider=provider_name, model=model_name)
-    service = MarketIntelligenceService(runtime_config)
-    try:
-        trace(
-            f"Lead researcher started planning coverage for {company_name} "
-            f"using {PROVIDER_LABELS[provider_name]} / {model_name}."
-        )
-        yield provider_message, "\n".join(trace_log), None, None, "", None, None
+    async with MarketIntelligenceService(runtime_config) as service:
+        try:
+            trace(
+                f"Lead researcher started planning coverage for {company_name} "
+                f"using {PROVIDER_LABELS[provider_name]} / {model_name}."
+            )
+            yield provider_message, "\n".join(trace_log), None, None, "", None, None
 
-        plan = service.plan_research(company_name, toggles)
-        trace(f"Lead researcher identified {len(plan.intel_gaps)} intel gaps and {len(plan.search_tasks)} search tasks.")
-        yield provider_message, "\n".join(trace_log), None, None, "", None, None
+            plan = await service.plan_research(company_name, toggles)
+            trace(f"Lead researcher identified {len(plan.intel_gaps)} intel gaps and {len(plan.search_tasks)} search tasks.")
+            yield provider_message, "\n".join(trace_log), None, None, "", None, None
 
-        search_results = service.execute_searches(plan, toggles, trace)
-        preview = {"urls": [result.model_dump() for result in search_results]}
-        yield provider_message, "\n".join(trace_log), preview, None, "", None, None
-
-        analyses = []
-        for source in search_results:
-            source_text = service.fetch_source_text(source, trace)
-            if not source_text.strip():
-                trace(f"Skipped source with no usable text: {source.url}")
-                yield provider_message, "\n".join(trace_log), preview, None, "", None, None
-                continue
-
-            trace(f"Analyst agent is extracting signals from {source.title}.")
-            analysis = service.analyze_source(company_name, plan, source, source_text)
-            if analysis is not None:
-                analyses.append(analysis)
-                trace(f"Captured structured findings from {analysis.source_title} with {analysis.confidence} confidence.")
-            else:
-                trace(f"Analyst skipped {source.title} because the page content was empty.")
+            search_results = await service.execute_searches(plan, toggles, trace)
+            preview = {"urls": [result.model_dump() for result in search_results]}
             yield provider_message, "\n".join(trace_log), preview, None, "", None, None
 
-        trace(f"Synthesis agent is compiling the final SWOT and market narrative from {len(analyses)} analyzed sources.")
-        yield provider_message, "\n".join(trace_log), preview, None, "", None, None
+            analyses = await service.analyze_sources_parallel(company_name, plan, search_results, trace)
 
-        report = service.synthesize_report(company_name, plan, analyses, trace_log)
-        report_json_path = export_report_json(report)
-        report_pdf_path = export_report_pdf(report)
+            trace(f"Synthesis agent is compiling the final SWOT and market narrative from {len(analyses)} analyzed sources.")
+            yield provider_message, "\n".join(trace_log), preview, None, "", None, None
 
-        yield (
-            provider_message,
-            "\n".join(trace_log),
-            report.model_dump(),
-            report_to_swot_rows(report),
-            report_to_markdown(report),
-            report_json_path,
-            report_pdf_path,
-        )
-    except Exception as exc:
-        trace(f"Workflow failed: {exc}")
-        yield provider_message, "\n".join(trace_log), None, None, "", None, None
-    finally:
-        service.close()
+            report = await service.synthesize_report(company_name, plan, analyses, trace_log)
+            report_json_path = export_report_json(report)
+            report_pdf_path = export_report_pdf(report)
+
+            yield (
+                provider_message,
+                "\n".join(trace_log),
+                report.model_dump(),
+                report_to_swot_rows(report),
+                report_to_markdown(report),
+                report_json_path,
+                report_pdf_path,
+            )
+        except Exception as exc:
+            trace(f"Workflow failed: {exc}")
+            yield provider_message, "\n".join(trace_log), None, None, "", None, None
 
 
 def build_ui() -> gr.Blocks:

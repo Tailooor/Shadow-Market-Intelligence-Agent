@@ -13,11 +13,12 @@ Requires-Dist: pydantic-ai-slim[anthropic,google,openai,openrouter]>=1.85.1
 Requires-Dist: pydantic-settings>=2.8.1
 Requires-Dist: python-dotenv>=1.1.0
 Requires-Dist: reportlab>=4.4.0
+Requires-Dist: tenacity>=9.0
 Requires-Dist: trafilatura>=2.0.0
 
 # Shadow-Market Intelligence Agent
 
-Shadow-Market Intelligence Agent is a multi-agent competitor research app built with Pydantic AI, OpenRouter, and Gradio.
+Shadow-Market Intelligence Agent is a multi-agent competitor research app built with Pydantic AI and Gradio. It helps you investigate a target company, collect public signals, and turn them into a structured competitor report for sales, strategy, or freelance consulting work.
 
 It creates a structured competitor report with:
 
@@ -32,13 +33,31 @@ It creates a structured competitor report with:
 ## Stack
 
 - `Pydantic AI` for typed agent orchestration and strict output schemas
-- `OpenRouter` with `openrouter/free`
-- provider switching for `OpenRouter`, `Gemini`, `OpenAI`, `Claude`, and `Ollama`
+- runtime provider switching for `OpenRouter`, `Gemini`, `OpenAI`, `Claude`, and `Ollama`
 - `Gradio` for the frontend
 - `DuckDuckGo Search` for URL discovery
 - `Trafilatura` + `BeautifulSoup` for page text extraction
+- `tenacity` for automatic retries on LLM calls
+- `httpx` async client for concurrent source fetching
+- `pytest` for testing
 
-## Why `openrouter/free`
+## Supported Providers
+
+The UI lets you choose the provider and model at runtime.
+
+- `OpenRouter`
+- `Gemini`
+- `OpenAI`
+- `Claude`
+- `Ollama`
+
+Each provider has:
+
+- its own API key or base URL in `.env`
+- suggested model choices in the UI
+- pre-run validation so missing keys are shown before the workflow starts
+
+## Why `openrouter/free` As The Default
 
 OpenRouter documents `openrouter/free` as a router that automatically selects from currently available free models and filters for needed features like structured outputs and tool calling.
 
@@ -96,15 +115,12 @@ MAX_SOURCES_TO_ANALYZE=6
 MAX_SOURCE_TEXT_CHARS=6000
 ```
 
-Then paste your real OpenRouter API key into:
+Then paste the real keys for the providers you want to use.
+
+Example:
 
 ```env
 OPENROUTER_API_KEY=your_real_openrouter_key
-```
-
-For the other providers, add keys only if you want to use them:
-
-```env
 GOOGLE_API_KEY=your_google_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
@@ -115,6 +131,8 @@ For Ollama, the important setting is usually:
 ```env
 OLLAMA_BASE_URL=http://localhost:11434/v1
 ```
+
+If you do not add a provider key, that is fine. The app will simply show a warning in the GUI when that provider is selected.
 
 You can keep the rest of the values as-is unless you want to tune the app.
 
@@ -130,6 +148,27 @@ Then open the local Gradio URL shown in your terminal, usually:
 http://127.0.0.1:7860
 ```
 
+### CLI Options
+
+```bash
+uv run python main.py --host 0.0.0.0 --port 8080 --share --log-level DEBUG
+```
+
+Options:
+
+- `--host`: Bind address (default: `127.0.0.1`)
+- `--port`: Port number (default: `7860`)
+- `--share`: Create a public Gradio share link
+- `--log-level`: Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
+
+### Docker
+
+```bash
+docker-compose up --build
+```
+
+The app will be available at `http://localhost:7860`.
+
 ### 4. Optional useful `uv` commands
 
 ```bash
@@ -139,6 +178,42 @@ uv run python -m compileall app main.py
 ```
 
 If you pulled a newer version of the repo with additional providers, run `uv sync` again so the Gemini and Claude SDK dependencies are installed locally.
+
+### 5. Run tests
+
+```bash
+uv run pytest
+```
+
+## Using The UI
+
+### 1. Pick a provider and model
+
+Use the `LLM Provider` dropdown to choose `OpenRouter`, `Gemini`, `OpenAI`, `Claude`, or `Ollama`.
+
+Then choose a model from the `Model` dropdown, or type your own model ID.
+
+### 2. Check provider status
+
+The app shows a provider status panel in the GUI.
+
+- If the required API key exists, it will say the provider is ready.
+- If the key is missing, it will tell you exactly which `.env` variable is missing.
+- For Ollama, it checks `OLLAMA_BASE_URL`.
+
+### 3. Run an intelligence sweep
+
+Enter a target company, optionally toggle Reddit, LinkedIn, and reviews analysis, then run the workflow.
+
+### 4. Review the output
+
+The app renders:
+
+- a streamed thought trace
+- the full structured JSON report
+- a `Pricing + SWOT Snapshot` table
+- a markdown market report
+- downloadable JSON and PDF exports
 
 ## How It Works
 
@@ -160,6 +235,8 @@ The search specialist uses DuckDuckGo to collect likely source URLs, including:
 - Reddit threads
 - product or company pages
 
+Searches run in parallel for speed.
+
 ### 3. Analyst Agent
 
 Each fetched page is analyzed into a strict schema that extracts:
@@ -169,6 +246,8 @@ Each fetched page is analyzed into a strict schema that extracts:
 - tech-stack signals
 - product facts
 - source confidence
+
+Source fetching and analysis run concurrently with a concurrency limit to avoid overwhelming target sites.
 
 ### 4. Synthesis Agent
 
@@ -183,11 +262,14 @@ The final agent turns those structured findings into a formal competitor report 
 - tech-stack fingerprinting
 - SWOT analysis
 
+All LLM calls include automatic retries with exponential backoff for resilience.
+
 ## UI Features
 
 - streamed activity trace in the Gradio app
 - provider selector with model dropdown
 - provider status area that warns when a required API key is missing from `.env`
+- dedicated `Pricing + SWOT Snapshot` table rendered with Gradio
 - tool toggles for Reddit, LinkedIn, and reviews analysis
 - JSON download
 - PDF download
@@ -198,21 +280,34 @@ The final agent turns those structured findings into a formal competitor report 
 - Some websites block scraping or render content heavily with JavaScript, so source coverage may vary.
 - `openrouter/free` is great for demos, prototyping, and lightweight client work, but reliability can vary since the router selects among currently available free models.
 - Review and community analysis works best when Reddit or review pages are publicly accessible.
+- Gemini, Claude, and OpenAI require their own provider keys in `.env`.
+- Ollama requires a reachable `OLLAMA_BASE_URL`, usually `http://localhost:11434/v1`.
+- If you change dependencies or pull a newer version, run `uv sync` again.
 
 ## Project Structure
 
 ```text
 .
 |-- app
+|   |-- __init__.py
 |   |-- agents.py
 |   |-- config.py
 |   |-- exporters.py
 |   |-- pipeline.py
 |   |-- schemas.py
 |   `-- ui.py
+|-- tests
+|   |-- __init__.py
+|   |-- test_config.py
+|   |-- test_exporters.py
+|   |-- test_pipeline.py
+|   `-- test_schemas.py
 |-- .env
 |-- .env.example
+|-- .gitignore
 |-- .python-version
+|-- docker-compose.yml
+|-- Dockerfile
 |-- main.py
 |-- pyproject.toml
 |-- README.md

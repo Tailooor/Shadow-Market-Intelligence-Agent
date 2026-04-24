@@ -19,6 +19,9 @@ It creates a structured competitor report with:
 - `Gradio` for the frontend
 - `DuckDuckGo Search` for URL discovery
 - `Trafilatura` + `BeautifulSoup` for page text extraction
+- `tenacity` for automatic retries on LLM calls
+- `httpx` async client for concurrent source fetching
+- `pytest` for testing
 
 ## Supported Providers
 
@@ -127,6 +130,27 @@ Then open the local Gradio URL shown in your terminal, usually:
 http://127.0.0.1:7860
 ```
 
+### CLI Options
+
+```bash
+uv run python main.py --host 0.0.0.0 --port 8080 --share --log-level DEBUG
+```
+
+Options:
+
+- `--host`: Bind address (default: `127.0.0.1`)
+- `--port`: Port number (default: `7860`)
+- `--share`: Create a public Gradio share link
+- `--log-level`: Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
+
+### Docker
+
+```bash
+docker-compose up --build
+```
+
+The app will be available at `http://localhost:7860`.
+
 ### 4. Optional useful `uv` commands
 
 ```bash
@@ -136,6 +160,12 @@ uv run python -m compileall app main.py
 ```
 
 If you pulled a newer version of the repo with additional providers, run `uv sync` again so the Gemini and Claude SDK dependencies are installed locally.
+
+### 5. Run tests
+
+```bash
+uv run pytest
+```
 
 ## Using The UI
 
@@ -187,6 +217,8 @@ The search specialist uses DuckDuckGo to collect likely source URLs, including:
 - Reddit threads
 - product or company pages
 
+Searches run in parallel for speed.
+
 ### 3. Analyst Agent
 
 Each fetched page is analyzed into a strict schema that extracts:
@@ -196,6 +228,8 @@ Each fetched page is analyzed into a strict schema that extracts:
 - tech-stack signals
 - product facts
 - source confidence
+
+Source fetching and analysis run concurrently with a concurrency limit to avoid overwhelming target sites.
 
 ### 4. Synthesis Agent
 
@@ -209,6 +243,8 @@ The final agent turns those structured findings into a formal competitor report 
 - sentiment drift analysis
 - tech-stack fingerprinting
 - SWOT analysis
+
+All LLM calls include automatic retries with exponential backoff for resilience.
 
 ## UI Features
 
@@ -235,15 +271,25 @@ The final agent turns those structured findings into a formal competitor report 
 ```text
 .
 |-- app
+|   |-- __init__.py
 |   |-- agents.py
 |   |-- config.py
 |   |-- exporters.py
 |   |-- pipeline.py
 |   |-- schemas.py
 |   `-- ui.py
+|-- tests
+|   |-- __init__.py
+|   |-- test_config.py
+|   |-- test_exporters.py
+|   |-- test_pipeline.py
+|   `-- test_schemas.py
 |-- .env
 |-- .env.example
+|-- .gitignore
 |-- .python-version
+|-- docker-compose.yml
+|-- Dockerfile
 |-- main.py
 |-- pyproject.toml
 |-- README.md
